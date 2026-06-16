@@ -13,7 +13,9 @@ struct MQTTClientFrameworkConnectionFactory: IMQTTConnectionFactory {
         MQTTClientFrameworkConnection(connectionConfig: connectionConfig,
                                       clientFactory: clientFactory,
                                       persistenceFactory: MQTTPersistenceFactory(
-                                        isPersistent: connectionConfig.isPersistent))
+                                        isDatabasePersistent: connectionConfig.isDatabasePersistent,
+                                        inMemoryPersistent: connectionConfig.inMemoryPersistent),
+                                      fixCxxDestructCrash: connectionConfig.fixCxxDestructCrash)
     }
 
 }

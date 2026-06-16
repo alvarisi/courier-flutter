@@ -13,6 +13,7 @@ class MQTTClientFrameworkConnection: NSObject, IMQTTConnection {
         connectionConfig.eventHandler
     }
 
+    private let fixCxxDestructCrash: Bool
     private let clientFactory: IMQTTClientFrameworkFactory
     private let persistenceFactory: IMQTTPersistenceFactory
     private let connectionConfig: ConnectionConfig
@@ -43,11 +44,12 @@ class MQTTClientFrameworkConnection: NSObject, IMQTTConnection {
 
     init(connectionConfig: ConnectionConfig,
          clientFactory: IMQTTClientFrameworkFactory,
-         persistenceFactory: IMQTTPersistenceFactory = MQTTPersistenceFactory()
-    ) {
+         persistenceFactory: IMQTTPersistenceFactory = MQTTPersistenceFactory(),
+         fixCxxDestructCrash: Bool) {
         self.connectionConfig = connectionConfig
         self.clientFactory = clientFactory
         self.persistenceFactory = persistenceFactory
+        self.fixCxxDestructCrash = fixCxxDestructCrash
         super.init()
 
         self.sessionManager = clientFactory.makeSessionManager(
@@ -57,7 +59,8 @@ class MQTTClientFrameworkConnection: NSObject, IMQTTConnection {
             delegate: self,
             connectTimeoutPolicy: connectionConfig.connectTimeoutPolicy,
             idleActivityTimeoutPolicy: connectionConfig.idleActivityTimeoutPolicy,
-            eventHandler: connectionConfig.eventHandler
+            eventHandler: connectionConfig.eventHandler,
+            fixCxxDestructCrash: fixCxxDestructCrash
         )
     }
 
@@ -236,7 +239,7 @@ extension MQTTClientFrameworkConnection: MQTTClientFrameworkSessionManagerDelega
         #if DEBUG
         printDebug("MQTT - COURIER: Message Delivered topic: \(topic), qos: \(qos), payload: \(String(data: data, encoding: .utf8) ?? "")")
         #endif
-        eventHandler.onEvent(.init(connectionInfo: connectOptions, event: .messageSendSuccess(topic: topic, qos: QoS(rawValue: Int(qos.rawValue)) ?? .zero, sizeBytes: data.count)))
+        eventHandler.onEvent(.init(connectionInfo: connectOptions, event: .messageSendSuccess(topic: topic, qos: QoS(rawValue: Int(qos.rawValue)) ?? .zero, sizeBytes: data.count, data: data)))
     }
 
     func sessionManager(_ sessionManager: IMQTTClientFrameworkSessionManager, didSubscribeTopics topics: [String]) {

@@ -51,7 +51,11 @@ protocol IMQTTClientFrameworkSessionManager {
     func deleteAllPersistedMessages()
 }
 
-class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionManager {
+/// Marked this class as `@unchecked Sendable` because it contains several properties that are not `Sendable` by default,
+/// such as `DispatchQueue`, `ReconnectTimer`, and reference types like `IMQTTSession`, `MQTTPersistence`, and `MQTTSSLSecurityPolicy`.
+/// However, all mutable shared state is accessed in a controlled and thread-safe manner—using `@Atomic`, dispatch queues,
+/// and proper synchronization—making this manual conformance safe in our context.
+class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionManager, @unchecked Sendable {
     private(set) var session: IMQTTSession?
     private(set) var host: String?
     private(set) var port: UInt32?
@@ -84,12 +88,11 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
     private var certificates: [Any]?
     private var protocolLevel: MQTTProtocolVersion?
     private var alpn: [String]?
-
     private var streamSSLLevel: String
 
     private var connectTimeoutPolicy: IConnectTimeoutPolicy
     private var idleActivityTimeoutPolicy: IdleActivityTimeoutPolicyProtocol
-    
+    private var fixCxxDestructCrash: Bool
 
     var requiresTeardown: Bool {
         state != .closed && state != .starting
@@ -103,7 +106,8 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
          mqttPersistenceFactory: IMQTTPersistenceFactory = MQTTPersistenceFactory(),
          connectTimeoutPolicy: IConnectTimeoutPolicy,
          idleActivityTimeoutPolicy: IdleActivityTimeoutPolicyProtocol,
-         eventHandler: ICourierEventHandler
+         eventHandler: ICourierEventHandler,
+         fixCxxDestructCrash: Bool
     ) {
         self.streamSSLLevel = streamSSLLevel
         self.queue = queue
@@ -112,6 +116,7 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
         self.connectTimeoutPolicy = connectTimeoutPolicy
         self.idleActivityTimeoutPolicy = idleActivityTimeoutPolicy
         self.eventHandler = eventHandler
+        self.fixCxxDestructCrash = fixCxxDestructCrash
         
         super.init()
         self.updateState(to: .starting)
@@ -119,6 +124,15 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
             self?.reconnect()
         })
     }
+
+     deinit {
+         if fixCxxDestructCrash == true {
+             reconnectTimer?.stop()
+             session?.delegate = nil
+             session?.close(disconnectHandler: nil)
+             session = nil
+         }
+     }
 
     func connect(
         to host: String,
@@ -179,6 +193,13 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
             self.certificates = certificates
             self.protocolLevel = protocolLevel
             self.alpn = alpn
+            
+            if fixCxxDestructCrash == true { // Remove this first `if` once the crash is fixed
+                if let oldSession = self.session {
+                    oldSession.delegate = nil   // stop callbacks from old session
+                    oldSession.close(disconnectHandler: nil)
+                }
+            }
 
             self.session = mqttSessionFactory.makeSession()
             session?.clientId = clientId
@@ -224,7 +245,27 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
 
     @discardableResult
     private func sendData(_ data: Data, topic: String, qos: MQTTQosLevel, retainFlag: Bool) -> UInt16 {
-        let msgId = session?.publishData(data, onTopic: topic, retain: retainFlag, qos: qos, publishHandler: nil) ?? 0
+        
+        var midProvider: (() -> UInt16)?
+        var publishHandler: MQTTPublishHandler?
+        if qos == MQTTQosLevel.atLeastOnceWithoutPersistenceAndNoRetry || qos == MQTTQosLevel.atLeastOnceWithoutPersistenceAndNoRetry {
+            publishHandler = { [weak self] error in
+                guard let self = self else { return }
+                printDebug("COURIER: Puback Handler for Special QoSes")
+                if error == nil {
+                    let mid = midProvider?() ?? 0
+                    self.delegate?.sessionManager(self, didDeliverMessageID: mid, topic: topic, data: data, qos: qos, retainFlag: retainFlag)
+                }
+            }
+        }
+        
+        let msgId = session?.publishData(data, onTopic: topic, retain: retainFlag, qos: qos, publishHandler: publishHandler) ?? 0
+        if publishHandler != nil {
+            midProvider = { [weak self] in
+                guard self != nil else { return 0 }
+                return msgId
+            }
+        }
         return msgId
     }
 
@@ -334,14 +375,16 @@ class MQTTClientFrameworkSessionManager: NSObject, IMQTTClientFrameworkSessionMa
     }
     
     func deleteAllPersistedMessages() {
-        let _persistence: MQTTCoreDataPersistence
-        if self.persistence.persistent, let coreDataPeristence = self.persistence as? MQTTCoreDataPersistence {
-            _persistence = coreDataPeristence
-        } else {
-            _persistence = MQTTCoreDataPersistence()
-            _persistence.persistent = true
-        }
-        queue.async {
+        queue.async { [weak self] in
+            guard let self else { return }
+
+            let _persistence: MQTTCoreDataPersistence
+            if self.persistence.persistent, let coreDataPeristence = self.persistence as? MQTTCoreDataPersistence {
+                _persistence = coreDataPeristence
+            } else {
+                _persistence = MQTTCoreDataPersistence()
+                _persistence.persistent = true
+            }
             _persistence.deleteAllFlows()
         }
     }
@@ -392,21 +435,12 @@ extension MQTTClientFrameworkSessionManager: MQTTSessionDelegate {
 
     func sending(_ session: MQTTSession!, type: MQTTCommandType, qos: MQTTQosLevel, retained: Bool, duped: Bool, mid: UInt16, data: Data!) {
         printDebug("MQTT - COURIER: Sending MQTT Command \(type.debugDescription)")
-        if CourierMQTTChuck.isEnabled {
-            var userInfo: [String: Any] = [
-                "type": type.rawValue,
-                "qos": qos.rawValue,
-                "retained": retained,
-                "duped": duped,
-                "mid": mid,
-                "sending": true,
-                "received": false,
-            ]
-            
-            if let data = data {
-                userInfo["data"] = data
+        
+        Task(priority: .background) {
+            let isEnabled = await CourierMQTTChuck.shared.isEnabled()
+            if isEnabled {
+                logToMQTTChuck(sending: true, received: false, type: type, qos: qos, retained: retained, duped: duped, mid: mid, data: data)
             }
-            NotificationCenter.default.post(name: mqttChuckNotification, object: nil, userInfo: userInfo)
         }
                 
         switch type {
@@ -421,21 +455,12 @@ extension MQTTClientFrameworkSessionManager: MQTTSessionDelegate {
 
     func received(_ session: MQTTSession!, type: MQTTCommandType, qos: MQTTQosLevel, retained: Bool, duped: Bool, mid: UInt16, data: Data!) {
         printDebug("MQTT - COURIER: Received MQTT Command \(type.debugDescription)")
-        if CourierMQTTChuck.isEnabled {
-            var userInfo: [String: Any] = [
-                "type": type.rawValue,
-                "qos": qos.rawValue,
-                "retained": retained,
-                "duped": duped,
-                "mid": mid,
-                "sending": false,
-                "received": true,
-            ]
-            
-            if let data = data {
-                userInfo["data"] = data
+        
+        Task(priority: .background) {
+            let isEnabled = await CourierMQTTChuck.shared.isEnabled()
+            if isEnabled {
+                logToMQTTChuck(sending: false, received: true, type: type, qos: qos, retained: retained, duped: duped, mid: mid, data: data)
             }
-            NotificationCenter.default.post(name: mqttChuckNotification, object: nil, userInfo: userInfo)
         }
         
         switch type {
@@ -444,5 +469,49 @@ extension MQTTClientFrameworkSessionManager: MQTTSessionDelegate {
         default:
             break
         }
+    }
+}
+
+extension MQTTClientFrameworkSessionManager {
+    
+    func logToMQTTChuck(sending: Bool, received: Bool, type: MQTTCommandType, qos: MQTTQosLevel, retained: Bool, duped: Bool, mid: UInt16, data: Data?) {
+        var userInfo: [String: Any] = [
+            "type": type.rawValue,
+            "qos": qos.rawValue,
+            "retained": retained,
+            "duped": duped,
+            "mid": mid,
+            "sending": sending,
+            "received": received,
+        ]
+        
+        if let data = data {
+            userInfo["data"] = data
+        }
+        if let connectOptions = self.connectOptions {
+            var connectOptionsInfo: [String: Any] = [
+                "host": connectOptions.host,
+                "port": Int(connectOptions.port),
+                "keepAlive": Int(connectOptions.keepAlive),
+                "clientId": connectOptions.clientId,
+                "isCleanSession": connectOptions.isCleanSession
+            ]
+            
+            if let userProperties = connectOptions.userProperties {
+                connectOptionsInfo["userProperties"] = userProperties
+            }
+            
+            if let alpn = connectOptions.alpn {
+                connectOptionsInfo["alpn"] = alpn
+            }
+            
+            if let scheme = connectOptions.scheme {
+                connectOptionsInfo["scheme"] = scheme
+            }
+            
+            userInfo["connectOptions"] = connectOptionsInfo
+        }
+        
+        NotificationCenter.default.post(name: mqttChuckNotification, object: nil, userInfo: userInfo)
     }
 }
