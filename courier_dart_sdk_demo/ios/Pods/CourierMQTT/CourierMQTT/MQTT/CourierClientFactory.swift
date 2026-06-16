@@ -26,6 +26,8 @@ public struct MQTTClientConfig {
 
     public let isMessagePersistenceEnabled: Bool
 
+    public let isMessageInMemoryPersistenceEnabled: Bool
+
     public let autoReconnectInterval: UInt16
 
     public let maxAutoReconnectInterval: UInt16
@@ -47,12 +49,15 @@ public struct MQTTClientConfig {
     public var incomingMessagePersistenceEnabled: Bool {
         messagePersistenceTTLSeconds > 0
     }
+    
+    public let fixCxxDestructCrash: Bool
 
     public init(
         topics: [String: QoS] = [:],
         authService: IConnectionServiceProvider,
         messageAdapters: [MessageAdapter] = [JSONMessageAdapter()],
         isMessagePersistenceEnabled: Bool = false,
+        isMessageInMemoryPersistenceEnabled: Bool = false,
         autoReconnectInterval: UInt16 = 5,
         maxAutoReconnectInterval: UInt16 = 10,
         enableAuthenticationTimeout: Bool = false,
@@ -61,12 +66,14 @@ public struct MQTTClientConfig {
         idleActivityTimeoutPolicy: IdleActivityTimeoutPolicyProtocol = IdleActivityTimeoutPolicy(),
         messagePersistenceTTLSeconds: TimeInterval = 0,
         messageCleanupInterval: TimeInterval = 10,
-        shouldInitializeCoreDataPersistenceContext: Bool = true
+        shouldInitializeCoreDataPersistenceContext: Bool = true,
+        fixCxxDestructCrash: Bool = false
     ) {
         self.topics = topics
         self.authService = authService
         self.messageAdapters = messageAdapters
         self.isMessagePersistenceEnabled = isMessagePersistenceEnabled
+        self.isMessageInMemoryPersistenceEnabled = isMessageInMemoryPersistenceEnabled
         self.autoReconnectInterval = autoReconnectInterval
         self.maxAutoReconnectInterval = maxAutoReconnectInterval
         self.enableAuthenticationTimeout = enableAuthenticationTimeout
@@ -76,6 +83,6 @@ public struct MQTTClientConfig {
         self.messagePersistenceTTLSeconds = messagePersistenceTTLSeconds
         self.messageCleanupInterval = messageCleanupInterval
         self.shouldInitializeCoreDataPersistenceContext = shouldInitializeCoreDataPersistenceContext
+        self.fixCxxDestructCrash = fixCxxDestructCrash
     }
-
 }

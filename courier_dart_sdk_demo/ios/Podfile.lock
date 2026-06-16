@@ -1,34 +1,40 @@
 PODS:
-  - courier_dart_sdk (0.0.1):
-    - CourierCore (= 0.0.19)
-    - CourierMQTT (= 0.0.19)
-    - CourierMQTTChuck (= 0.0.19)
+  - courier_dart_sdk (0.1.0):
+    - CourierCore (= 1.0.17)
+    - CourierMQTT (= 1.0.17)
+    - CourierMQTTChuck (= 1.0.17)
     - Flutter
-  - CourierCore (0.0.19)
-  - CourierMQTT (0.0.19):
-    - CourierCore (= 0.0.19)
-    - MQTTClientGJ (= 0.0.19)
-    - ReachabilitySwift (= 5.0.0)
-  - CourierMQTTChuck (0.0.19):
-    - CourierCore (= 0.0.19)
-    - CourierMQTT (= 0.0.19)
-    - MQTTClientGJ (= 0.0.19)
+  - courier_flutter (0.0.1):
+    - Courier_iOS (= 3.5.5)
+    - Flutter
+  - Courier_iOS (3.5.5)
+  - CourierCore (1.0.17)
+  - CourierMQTT (1.0.17):
+    - CourierCore (= 1.0.17)
+    - MQTTClientGJ (= 1.0.17)
+    - ReachabilitySwift (>= 5.0.0)
+  - CourierMQTTChuck (1.0.17):
+    - CourierCore (= 1.0.17)
+    - CourierMQTT (= 1.0.17)
+    - MQTTClientGJ (= 1.0.17)
   - Flutter (1.0.0)
-  - MQTTClientGJ (0.0.19)
-  - permission_handler_apple (9.0.4):
+  - MQTTClientGJ (1.0.17)
+  - permission_handler_apple (9.1.1):
     - Flutter
-  - ReachabilitySwift (5.0.0)
+  - ReachabilitySwift (5.2.4)
 
 DEPENDENCIES:
   - courier_dart_sdk (from `.symlinks/plugins/courier_dart_sdk/ios`)
-  - CourierCore (= 0.0.19)
-  - CourierMQTT (= 0.0.19)
-  - CourierMQTTChuck (= 0.0.19)
+  - courier_flutter (from `.symlinks/plugins/courier_flutter/ios`)
+  - CourierCore (= 1.0.17)
+  - CourierMQTT (= 1.0.17)
+  - CourierMQTTChuck (= 1.0.17)
   - Flutter (from `Flutter`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
 
 SPEC REPOS:
   trunk:
+    - Courier_iOS
     - CourierCore
     - CourierMQTT
     - CourierMQTTChuck
@@ -38,21 +44,25 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   courier_dart_sdk:
     :path: ".symlinks/plugins/courier_dart_sdk/ios"
+  courier_flutter:
+    :path: ".symlinks/plugins/courier_flutter/ios"
   Flutter:
     :path: Flutter
   permission_handler_apple:
     :path: ".symlinks/plugins/permission_handler_apple/ios"
 
 SPEC CHECKSUMS:
-  courier_dart_sdk: 2a0bb812b345a9267495b31e0f83452656d9c882
-  CourierCore: bdaf367323ba99e3b369ad4b9c449a2acb235fbe
-  CourierMQTT: bcfb8a4c51d8b144d36bd5c17f1750ce81af8a1b
-  CourierMQTTChuck: 945a4daf14fb6a421d8afdcdf4d854fd3f69fa1b
-  Flutter: f04841e97a9d0b0a8025694d0796dd46242b2854
-  MQTTClientGJ: a3840bdac554c11913a8bd65ea09657651786742
-  permission_handler_apple: 44366e37eaf29454a1e7b1b7d736c2cceaeb17ce
-  ReachabilitySwift: 985039c6f7b23a1da463388634119492ff86c825
+  courier_dart_sdk: 0292ac69bfcd88ee921897b5f0f6f4abfaff3d9e
+  courier_flutter: 9b83189227710d300ed54859fc4ace49db266862
+  Courier_iOS: 327909adc43d09c223214e5565f0ec5778fa2cb9
+  CourierCore: 5cd24d10a2e7de954eb794ca09f0fc96f0df814c
+  CourierMQTT: 09e8b1cff051f5fffca8fd4b8a759f480e9cc2e1
+  CourierMQTTChuck: 7de434a2f94bdbc449f1c2efc9ea65fc022e8d9e
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  MQTTClientGJ: d5a0c27304205cef4b52a5443666d532f954d131
+  permission_handler_apple: 3787117e48f80715ff04a3830ca039283d6a4f29
+  ReachabilitySwift: 32793e867593cfc1177f5d16491e3a197d2fccda
 
-PODFILE CHECKSUM: e89a4056917fe634c35d24da7e0ac86bf7c6fdda
+PODFILE CHECKSUM: 07ebb654cecf5c5a9491683094bdaab8bb9a2dff
 
-COCOAPODS: 1.12.1
+COCOAPODS: 1.16.2

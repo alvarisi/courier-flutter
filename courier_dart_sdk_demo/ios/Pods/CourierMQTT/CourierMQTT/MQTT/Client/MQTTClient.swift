@@ -53,7 +53,9 @@ class MQTTClient: IMQTTClient {
             authFailureHandler: configuration.authFailureHandler,
             connectTimeoutPolicy: configuration.connectTimeoutPolicy,
             idleActivityTimeoutPolicy: configuration.idleActivityTimeoutPolicy,
-            isPersistent: configuration.isMQTTPersistentEnabled
+            isDatabasePersistent: configuration.isMQTTPersistentEnabled,
+            inMemoryPersistent: configuration.isMQTTMemoryPersistentEnabled,
+            fixCxxDestructCrash: configuration.fixCxxDestructCrash
         )
 
         connection = mqttConnectionFactory.makeConnection(connectionConfig: connectionConfig)
@@ -75,12 +77,14 @@ class MQTTClient: IMQTTClient {
             return
         }
         eventHandler.onEvent(.init(connectionInfo: options, event: .reconnect))
-        disconnect()
+        disconnect(isInternal: true)
         connect(connectOptions: options)
     }
 
-    func disconnect() {
-        eventHandler.onEvent(.init(connectionInfo: connectOptions, event: .connectionDisconnect))
+    func disconnect(isInternal: Bool) {
+        if !isInternal {
+            eventHandler.onEvent(.init(connectionInfo: connectOptions, event: .connectionDisconnect))
+        }
         isInitialized = false
         disconnectMqtt()
     }
@@ -185,7 +189,7 @@ class MQTTClient: IMQTTClient {
     }
 
     func destroy() {
-        disconnect()
+        disconnect(isInternal: false)
         connectOptions = nil
         removeObserveAppLifecycle()
         removeObserveNetwork()
@@ -218,7 +222,7 @@ extension MQTTClient {
 
 extension MQTTClient: KeepAliveFailureHandler {
     func handleKeepAliveFailure() {
-        disconnect()
+        disconnect(isInternal: true)
         reconnect()
     }
 }

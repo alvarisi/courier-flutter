@@ -1,0 +1,6 @@
+framework module courier_flutter {
+  umbrella header "courier_flutter-umbrella.h"
+
+  export *
+  module * { export * }
+}
